@@ -317,18 +317,26 @@ public static void main(String[] args) throws Exception
             System.err.println("Usage: KnnPattern <in> <out> <parameter file>");
             System.exit(2);
         }
-
-        try (final BufferedReader br = new BufferedReader(new FileReader(args[2]))) 
+		
+		//Reading argument using Hadoop API now
+		job.addCacheFile(new URI(args[2] + "#knnParamFileOriginal"));
+		
+		//
+        try (String linesComplete = FileUtils.readFileToString(new File("./knnParamFileOriginal"))) 
 	{
+		
+			StringTokenizer lineSt = new StringTokenizer(linesComplete, "\n\r");
             int n = 1;
-            String line;
-            while ((line = br.readLine()) != null) 
+            String nextLine;
+            while (lineSt.hasMoreTokens()) 
 		{
+				
+				nextLine = lineSt.nextToken(); 
                 // create temporary file with content of current line
                 final File tmpDataFile = File.createTempFile("hadoop-test-", null);
                 try (BufferedWriter tmpDataWriter = new BufferedWriter(new FileWriter(tmpDataFile))) 
 		{
-                    tmpDataWriter.write(line);
+                    tmpDataWriter.write(nextLine);
                     tmpDataWriter.flush();
                 }
 
