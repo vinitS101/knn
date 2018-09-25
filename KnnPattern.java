@@ -1,11 +1,6 @@
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.io.File;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.FileReader;
+import java.io.*;
+
+import java.nio.*;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -23,6 +18,9 @@ import java.net.URISyntaxException;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.WritableComparable;
@@ -92,7 +90,7 @@ public class KnnPattern
 		
 		// Declaring some variables which will be used throughout the mapper
 		int K;
-	    
+		
 		double normalisedSAge;
 		double normalisedSIncome;
 		String sStatus;
@@ -159,21 +157,21 @@ public class KnnPattern
 		// context object
 		protected void setup(Context context) throws IOException, InterruptedException
 		{
-			if (context.getCacheFiles() != null && context.getCacheFiles().length > 0)
-			{
 				// Read parameter file using alias established in main()
-				String knnParams = FileUtils.readFileToString(new File("./knnParamFile"));
+				Configuration conf = context.getConfiguration();
+				String knnParams = conf.get("passedVal");
+
 				StringTokenizer st = new StringTokenizer(knnParams, ",");
-		    	
-		    	// Using the variables declared earlier, values are assigned to K and to the test dataset, S.
-		    	// These values will remain unchanged throughout the mapper
-				K = Integer.parseInt(st.nextToken());
+				
+				// Using the variables declared earlier, values are assigned to K and to the test dataset, S.
+				// These values will remain unchanged throughout the mapper
+				K = 5;
 				normalisedSAge = normalisedDouble(st.nextToken(), minAge, maxAge);
 				normalisedSIncome = normalisedDouble(st.nextToken(), minIncome, maxIncome);
 				sStatus = st.nextToken();
 				sGender = st.nextToken();
 				normalisedSChildren = normalisedDouble(st.nextToken(), minChildren, maxChildren);
-			}
+			
 		}
 				
 		@Override
@@ -236,14 +234,17 @@ public class KnnPattern
 		// setup() again is run before the main reduce() method
 		protected void setup(Context context) throws IOException, InterruptedException
 		{
-			if (context.getCacheFiles() != null && context.getCacheFiles().length > 0)
+			/*if (context.getCacheFiles() != null && context.getCacheFiles().length > 0)
 			{
 				// Read parameter file using alias established in main()
 				String knnParams = FileUtils.readFileToString(new File("./knnParamFile"));
 				StringTokenizer st = new StringTokenizer(knnParams, ",");
 				// Only K is needed from the parameter file by the reducer
 				K = Integer.parseInt(st.nextToken());
-			}
+				
+			}*/
+
+			K = 5;
 		}
 		
 		@Override
@@ -273,108 +274,96 @@ public class KnnPattern
 				List<String> knnList = new ArrayList<String>(KnnMap.values());
 
 				Map<String, Integer> freqMap = new HashMap<String, Integer>();
-			    
-			    // Add the members of the list to the HashMap as keys and the number of times each occurs
-			    // (frequency) as values
-			    for(int i=0; i< knnList.size(); i++)
-			    {  
-			        Integer frequency = freqMap.get(knnList.get(i));
-			        if(frequency == null)
-			        {
-			            freqMap.put(knnList.get(i), 1);
-			        } else
-			        {
-			            freqMap.put(knnList.get(i), frequency+1);
-			        }
-			    }
-			    
-			    // Examine the HashMap to determine which key (model) has the highest value (frequency)
-			    String mostCommonModel = null;
-			    int maxFrequency = -1;
-			    for(Map.Entry<String, Integer> entry: freqMap.entrySet())
-			    {
-			        if(entry.getValue() > maxFrequency)
-			        {
-			            mostCommonModel = entry.getKey();
-			            maxFrequency = entry.getValue();
-			        }
-			    }
-			    
+				
+				// Add the members of the list to the HashMap as keys and the number of times each occurs
+				// (frequency) as values
+				for(int i=0; i< knnList.size(); i++)
+				{  
+					Integer frequency = freqMap.get(knnList.get(i));
+					if(frequency == null)
+					{
+						freqMap.put(knnList.get(i), 1);
+					} else
+					{
+						freqMap.put(knnList.get(i), frequency+1);
+					}
+				}
+				
+				// Examine the HashMap to determine which key (model) has the highest value (frequency)
+				String mostCommonModel = null;
+				int maxFrequency = -1;
+				for(Map.Entry<String, Integer> entry: freqMap.entrySet())
+				{
+					if(entry.getValue() > maxFrequency)
+					{
+						mostCommonModel = entry.getKey();
+						maxFrequency = entry.getValue();
+					}
+				}
+				
 			// Finally write to context another NullWritable as key and the most common model just counted as value.
 			context.write(NullWritable.get(), new Text(mostCommonModel)); // Use this line to produce a single classification
 //			context.write(NullWritable.get(), new Text(KnnMap.toString()));	// Use this line to see all K nearest neighbours and distances
 		}
 	}
+	
+	
+	
+	
 
 	// Main program to run: By calling MapReduce's 'job' API it configures and submits the MapReduce job.
 public static void main(String[] args) throws Exception 
 {
-        // Create configuration
-        Configuration conf = new Configuration();
+			// Create configuration
+			Configuration conf = new Configuration();
 
-        if (args.length != 3) 
-	{
-            System.err.println("Usage: KnnPattern <in> <out> <parameter file>");
-            System.exit(2);
-        }
+			if (args.length != 3) 
+			{
+				System.err.println("Usage: KnnPattern <in> <out> <parameter file>");
+				System.exit(2);
+			}
 		
-		//Reading argument using Hadoop API now
-		job.addCacheFile(new URI(args[2] + "#knnParamFileOriginal"));
-		
-		//
-        try (String linesComplete = FileUtils.readFileToString(new File("./knnParamFileOriginal"))) 
-	{
-		
-			StringTokenizer lineSt = new StringTokenizer(linesComplete, "\n\r");
-            int n = 1;
-            String nextLine;
-            while (lineSt.hasMoreTokens()) 
-		{
-				
-				nextLine = lineSt.nextToken(); 
-                // create temporary file with content of current line
-                final File tmpDataFile = File.createTempFile("hadoop-test-", null);
-                try (BufferedWriter tmpDataWriter = new BufferedWriter(new FileWriter(tmpDataFile))) 
-		{
-                    tmpDataWriter.write(nextLine);
-                    tmpDataWriter.flush();
-                }
+			//Reading argument using Hadoop API now
+			conf.set ("params", (args[2]));
+			String param = conf.get("params");
+			StringTokenizer inputLine = new StringTokenizer(param, "|");
 
-                // Create job
-                Job job = Job.getInstance(conf, "Find K-Nearest Neighbour #" + n);
-                job.setJarByClass(KnnPattern.class);
-                // Set the third parameter when running the job to be the parameter file and give it an alias
-                job.addCacheFile(new URI(tmpDataFile.getAbsolutePath() + "#knnParamFile")); // Parameter file containing test data
+			int n = 1;
+			while(inputLine.hasMoreTokens())
+			{
 
-                // Setup MapReduce job
-                job.setMapperClass(KnnMapper.class);
-                job.setReducerClass(KnnReducer.class);
-                job.setNumReduceTasks(1); // Only one reducer in this design
+				conf.set("passedVal", inputLine.nextToken());
 
-                // Specify key / value
-                job.setMapOutputKeyClass(NullWritable.class);
-                job.setMapOutputValueClass(DoubleString.class);
-                job.setOutputKeyClass(NullWritable.class);
-                job.setOutputValueClass(Text.class);
+				// Create job
+				Job job = Job.getInstance(conf, "Find K-Nearest Neighbour #" + n);
+				job.setJarByClass(KnnPattern.class);
 
-                // Input (the data file) and Output (the resulting classification)
-                FileInputFormat.addInputPath(job, new Path(args[0]));
-                FileOutputFormat.setOutputPath(job, new Path(args[1] + "_" + n));
+				// Setup MapReduce job
+				job.setMapperClass(KnnMapper.class);
+				job.setReducerClass(KnnReducer.class);
+				job.setNumReduceTasks(1); // Only one reducer in this design
 
-                // Execute job
-                final boolean jobSucceeded = job.waitForCompletion(true);
+				// Specify key / value
+				job.setMapOutputKeyClass(NullWritable.class);
+				job.setMapOutputValueClass(DoubleString.class);
+				job.setOutputKeyClass(NullWritable.class);
+				job.setOutputValueClass(Text.class);
 
-                // clean up
-                tmpDataFile.delete();
+				// Input (the data file) and Output (the resulting classification)
+				FileInputFormat.addInputPath(job, new Path(args[0]));
+				FileOutputFormat.setOutputPath(job, new Path(args[1] + "_" + n));
 
-                if (!jobSucceeded) 
-		{
-                    // return error status if job failed
-                    System.exit(1);
-                }
+				// Execute job
+				final boolean jobSucceeded = job.waitForCompletion(true);
 
-                ++n;
-            }
-        }
-    }
+				if (!jobSucceeded) 
+				{
+					// return error status if job failed
+					System.exit(1);
+				}
+
+				++n;
+			}
+
+}
 }
