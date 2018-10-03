@@ -1,8 +1,5 @@
 import java.io.*;
 
-import java.nio.*;
-
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -10,10 +7,10 @@ import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.TreeMap;
 
+import java.net.URI;
+
 import java.lang.Object;
-import java.lang.Throwable;
 import java.lang.Exception;
-import java.net.URISyntaxException;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
@@ -23,7 +20,9 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.WritableComparable;
+
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -70,7 +69,8 @@ Ordinal (0-9)
 
 public class KnnPokerhand
 {
-	public static class KnnMapper extends Mapper<Text, Text, NullWritable, DoubleString>
+
+	public static class KnnMapper extends Mapper<Object, Text, NullWritable, Text>
 	{
 		TreeMap<Double, String> KnnMap = new TreeMap<Double, String>();
 		
@@ -95,7 +95,7 @@ public class KnnPokerhand
 
 		private double normalisedDouble(String n1, double min, double max)
 		{
-			return ((double.parseDouble - min) / (max - min));
+			return (Double.parseDouble(n1) - min) / (max - min);
 
 		}
 
@@ -125,7 +125,7 @@ public class KnnPokerhand
 
 		protected void setup(Context context) throws IOException, InterruptedException
 		{
-				// Read parameter file using alias established in main()
+				
 				Configuration conf = context.getConfiguration();
 				String knnParams = conf.get("passedVal");
 
@@ -148,7 +148,7 @@ public class KnnPokerhand
 
 		}
 
-		public void map(Text key, Text value, Context context) throws IOException, InterruptedException
+		public void map(Object key, Text value, Context context) throws IOException, InterruptedException
 		{
 
 				String rLine = value.toString();
@@ -184,20 +184,104 @@ public class KnnPokerhand
 
 		protected void cleanup(Context context) throws IOException, InterruptedException
 		{
-			for(Map.Entry<Double, String> entry : KnnMap.entrySet())
-			{
-				Double knnDist = entry.getKey();
-				String knnClass = entry.getValue();
 
+			List<String> knnList = new ArrayList<String>(KnnMap.values());
+
+				Map<String, Integer> freqMap = new HashMap<String, Integer>();
+
+				for(int i=0; i< knnList.size(); i++)
+				{  
+					Integer frequency = freqMap.get(knnList.get(i));
+					if(frequency == null)
+					{
+						freqMap.put(knnList.get(i), 1);
+					} else
+					{
+						freqMap.put(knnList.get(i), frequency+1);
+					}
+				}
 				
+				// Examine the HashMap to determine which key (model) has the highest value (frequency)
+				String mostCommonClass = null;
+				int maxFrequency = -1;
+				for(Map.Entry<String, Integer> entry: freqMap.entrySet())
+				{
+					if(entry.getValue() > maxFrequency)
+					{
+						mostCommonClass = entry.getKey();
+						maxFrequency = entry.getValue();
+					}
+				}
+				
+				try{
+						context.write(NullWritable.get(), new Text(mostCommonClass));
+					}
+				catch(NullPointerException e)
+				{
+					Text nullOut = new Text();
+					nullOut.set("None");
 
-			}
+					context.write(NullWritable.get(), nullOut);
+				}
+
+
 		}
 	}
 
-
-	public static class KnnReducer extends Reducer<NullWritable, DoubleString, NullWritable, Text>
+	public static void main(String[] args) throws Exception 
 	{
+			// Create configuration
+			Configuration conf = new Configuration();
+
+			if (args.length != 3) 
+			{
+				System.err.println("Usage: KnnPattern <in> <out> <parameter file>");
+				System.exit(2);
+			}
+
+			Path pt = new Path(args[2]);
+
+			FileSystem fs = FileSystem.get(new Configuration());
+			BufferedReader br = new BufferedReader(new InputStreamReader(fs.open(pt)));
+
+			String inputLine = "";
+
+			int n = 1;
+			while((inputLine = br.readLine()) != null)
+			{
+
+				conf.set("passedVal", inputLine);
+
+				// Create job
+				Job job = Job.getInstance(conf, "Find K-Nearest Neighbour #" + n);
+				job.setJarByClass(KnnPokerhand.class);
+
+				// Setup MapReduce job
+				job.setMapperClass(KnnMapper.class);
+				//job.setReducerClass(KnnReducer.class);
+				job.setNumReduceTasks(0); // No reducer in this design
+
+				// Specify key / value
+				job.setMapOutputKeyClass(NullWritable.class);
+				job.setMapOutputValueClass(Text.class);
+				job.setOutputKeyClass(NullWritable.class);
+				job.setOutputValueClass(IntWritable.class);
+
+				// Input (the data file) and Output (the resulting classification)
+				FileInputFormat.addInputPath(job, new Path(args[0]));
+				FileOutputFormat.setOutputPath(job, new Path(args[1] + "_" + n));
+
+				// Execute job
+				final boolean jobSucceeded = job.waitForCompletion(true);
+
+				if (!jobSucceeded) 
+				{
+					// return error status if job failed
+					System.exit(1);
+				}
+
+				++n;
+			}
 
 
 	}
