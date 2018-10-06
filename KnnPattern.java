@@ -157,8 +157,6 @@ public class KnnPattern
 		protected void setup(Context context) throws IOException, InterruptedException
 		{
 				// Read parameter file using alias established in main()
-				//String knnParams = FileUtils.readFileToString(new File("./knnParamFile"));
-
 				Configuration conf = context.getConfiguration();
 				String knnParams = conf.get("passedVal");
 
@@ -351,8 +349,6 @@ public class KnnPattern
 			FileOutputFormat.setOutputPath(job, new Path(args[1] + "_" + n));
 			
 			// Execute job and return status
-			//System.exit(job.waitForCompletion(true) ? 0 : 1);
-
 			final boolean jobSucceeded = job.waitForCompletion(true);
 
 			if (!jobSucceeded) 
