@@ -6,3 +6,4 @@ This project focuses on creating a MapReduce program for Hadoop so that it can b
 
 This program will then be used to test and compare the performance of the Hadoop Framework for different physical variables.
 
+Use: "hadoop fs -cat /poker/output/out_*/part-r-00000 > TheCombinedResultOfTheJob.txt" to combine the results of the MR jobs into one txt file for further usage.
