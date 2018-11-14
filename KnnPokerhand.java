@@ -72,9 +72,6 @@ public class KnnPokerhand
 	// WritableComparable class for a paired Double and String (distance and model)
 	// This is a custom class for MapReduce to pass a double and a String through context
 	// as one serializable object.
-	// This example only implements the minimum required methods to make this job run. To be
-	// deployed robustly is should include ToString(), hashCode(), WritableComparable interface
-	// if this object was intended to be used as a key etc.
 		public static class DoubleString implements WritableComparable<DoubleString>
 		{
 			private Double distance = 0.0;
@@ -117,29 +114,18 @@ public class KnnPokerhand
 			}
 		}
 	
-	// The mapper class accepts an object and text (row identifier and row contents) and outputs
-	// two MapReduce Writable classes, NullWritable and DoubleString (defined earlier)
 	public static class KnnMapper extends Mapper<Object, Text, NullWritable, DoubleString>
 	{
-		DoubleString distanceAndModel = new DoubleString();
+		DoubleString distanceAndClass = new DoubleString();
 		TreeMap<Double, String> KnnMap = new TreeMap<Double, String>();
 		
-		// Declaring some variables which will be used throughout the mapper
+		// K should be defined explicitly, here AND in the setup in the reducer.
 		int K=5;
 		
-		double suit1;
-		double suit2;
-		double suit3;
-		double suit4;
-		double suit5;
+		//Attributes of the Training data set
+		double suit1, suit2, suit3, suit4, suit5;		
+		double rank1, rank2, rank3, rank4, rank5;
 		
-		double rank1;
-		double rank2;
-		double rank3;
-		double rank4;
-		double rank5;
-		
-
 		// The known ranges of the dataset, which can be hardcoded.
 		double minSuit = 1;
 		double maxSuit = 4;
@@ -164,7 +150,6 @@ public class KnnPokerhand
 		// of each pair (using nominalDistance() for strings) and returns the sum of the squared differences as a double.
 		private double totalSquaredDistance(double s1, double r1, double s2, double r2, double s3, double r3, double s4, double r4, double s5, double r5, double sR1, double rR1, double sR2, double rR2, double sR3, double rR3, double sR4, double rR4, double sR5, double rR5)
 		{
-
 			double s1Diff = s1 - sR1;
 			double s2Diff = s2 - sR2;
 			double s3Diff = s3 - sR3;
@@ -181,11 +166,7 @@ public class KnnPokerhand
 
 		}
 
-		// The @Override annotation causes the compiler to check if a method is actually being overridden
-		// (a warning would be produced in case of a typo or incorrectly matched parameters)
 		@Override
-		// The setup() method is run once at the start of the mapper and is supplied with MapReduce's
-		// context object
 		protected void setup(Context context) throws IOException, InterruptedException
 		{
 				Configuration conf = context.getConfiguration();
@@ -211,11 +192,9 @@ public class KnnPokerhand
 		}
 				
 		@Override
-		// The map() method is run by MapReduce once for each row supplied as the input data
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException
 		{
-			// Tokenize the input line (presented as 'value' by MapReduce) from the csv file
-			// This is the training dataset, R
+			// Tokenize the input line (presented as 'value' by MapReduce) from the txt file
 			String rLine = value.toString();
 			StringTokenizer st = new StringTokenizer(rLine, ",");
 
@@ -236,11 +215,10 @@ public class KnnPokerhand
 
 			String pokerClass = st.nextToken();
 			
-			// Using these row specific values and the unchanging S dataset values, calculate a total squared
+			// Using these row specific values and the unchanging Testing dataset values, to calculate a total squared
 			// distance between each pair of corresponding values.
 			double tDist = totalSquaredDistance(suit1, rank1, suit2, rank2, suit3, rank3, suit4, rank4, suit5, rank5, suit1R, rank1R, suit2R, rank2R, suit3R, rank3R, suit4R, rank4R, suit5R, rank5R);
 		
-			
 			// Add the total distance and corresponding poker class for this row into the TreeMap with distance
 			// as key and model as value.
 			KnnMap.put(tDist, pokerClass);
@@ -260,9 +238,9 @@ public class KnnPokerhand
 				  Double knnDist = entry.getKey();
 				  String knnModel = entry.getValue();
 				  // distanceAndModel is the instance of DoubleString declared aerlier
-				  distanceAndModel.set(knnDist, knnModel);
+				  distanceAndClass.set(knnDist, knnModel);
 				  // Write to context a NullWritable as key and distanceAndModel as value
-				  context.write(NullWritable.get(), distanceAndModel);
+				  context.write(NullWritable.get(), distanceAndClass);
 			}
 		}
 	}
@@ -278,9 +256,8 @@ public class KnnPokerhand
 		// setup() again is run before the main reduce() method
 		protected void setup(Context context) throws IOException, InterruptedException
 		{			
-			// Only K is needed from the parameter file by the reducer
-			K = 5;
-			
+			//Set the value of K explicitly, here and at the start of the Mapper Class
+			K = 5;	
 		}
 		
 		@Override
@@ -326,20 +303,19 @@ public class KnnPokerhand
 			    }
 			    
 			    // Examine the HashMap to determine which key (model) has the highest value (frequency)
-			    String mostCommonModel = null;
+			    String mostCommonClass = null;
 			    int maxFrequency = -1;
 			    for(Map.Entry<String, Integer> entry: freqMap.entrySet())
 			    {
 			        if(entry.getValue() > maxFrequency)
 			        {
-			            mostCommonModel = entry.getKey();
+			            mostCommonClass = entry.getKey();
 			            maxFrequency = entry.getValue();
 			        }
 			    }
 			    
 			// Finally write to context another NullWritable as key and the most common model just counted as value.
-			context.write(NullWritable.get(), new Text(mostCommonModel)); // Use this line to produce a single classification
-//			context.write(NullWritable.get(), new Text(KnnMap.toString()));	// Use this line to see all K nearest neighbours and distances
+			context.write(NullWritable.get(), new Text(mostCommonClass));
 		}
 	}
 
