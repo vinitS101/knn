@@ -29,15 +29,49 @@ import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
-public class KnnPattern
+
+/*
+Attribute Information:
+
+1) S1 "Suit of card #1"
+Ordinal (1-4) representing {Hearts, Spades, Diamonds, Clubs}
+
+2) C1 "Rank of card #1"
+Numerical (1-13) representing (Ace, 2, 3, ... , Queen, King)
+
+3) S2 "Suit of card #2"
+4) C2 "Rank of card #2"
+
+5) S3 "Suit of card #3"
+6) C3 "Rank of card #3"
+
+7) S4 "Suit of card #4"
+8) C4 "Rank of card #4"
+
+9) S5 "Suit of card #5"
+10) C5 "Rank of card 5"
+
+11) CLASS "Poker Hand"
+Ordinal (0-9)
+
+0: Nothing in hand; not a recognized poker hand
+1: One pair; one pair of equal ranks within five cards
+2: Two pairs; two pairs of equal ranks within five cards
+3: Three of a kind; three equal ranks within five cards
+4: Straight; five cards, sequentially ranked with no gaps
+5: Flush; five cards with the same suit
+6: Full house; pair + different rank three of a kind
+7: Four of a kind; four equal ranks within five cards
+8: Straight flush; straight + flush
+9: Royal flush; {Ace, King, Queen, Jack, Ten} + flush 
+*/
+
+public class KnnPokerhand
 {
 	
 	// WritableComparable class for a paired Double and String (distance and model)
 	// This is a custom class for MapReduce to pass a double and a String through context
 	// as one serializable object.
-	// This example only implements the minimum required methods to make this job run. To be
-	// deployed robustly is should include ToString(), hashCode(), WritableComparable interface
-	// if this object was intended to be used as a key etc.
 		public static class DoubleString implements WritableComparable<DoubleString>
 		{
 			private Double distance = 0.0;
@@ -80,49 +114,29 @@ public class KnnPattern
 			}
 		}
 	
-	// The mapper class accepts an object and text (row identifier and row contents) and outputs
-	// two MapReduce Writable classes, NullWritable and DoubleString (defined earlier)
 	public static class KnnMapper extends Mapper<Object, Text, NullWritable, DoubleString>
 	{
-		DoubleString distanceAndModel = new DoubleString();
+		DoubleString distanceAndClass = new DoubleString();
 		TreeMap<Double, String> KnnMap = new TreeMap<Double, String>();
 		
-		// Declaring some variables which will be used throughout the mapper
-		int K;
-	    
-		double normalisedSAge;
-		double normalisedSIncome;
-		String sStatus;
-		String sGender;
-		double normalisedSChildren;
+		// K should be defined explicitly, here AND in the setup in the reducer.
+		int K=5;
 		
-		// The known ranges of the dataset, which can be hardcoded in for the purposes of this example
-		double minAge = 18;
-		double maxAge = 77;
-		double minIncome = 5000;
-		double maxIncome = 67789;
-		double minChildren = 0;
-		double maxChildren = 5;
-			
+		//Attributes of the Training data set
+		double suit1, suit2, suit3, suit4, suit5;		
+		double rank1, rank2, rank3, rank4, rank5;
+		
+		// The known ranges of the dataset, which can be hardcoded.
+		double minSuit = 1;
+		double maxSuit = 4;
+		double minRank = 1;
+		double maxRank = 13;
+		
 		// Takes a string and two double values. Converts string to a double and normalises it to
 		// a value in the range supplied to reurn a double between 0.0 and 1.0 
 		private double normalisedDouble(String n1, double minValue, double maxValue)
 		{
 			return (Double.parseDouble(n1) - minValue) / (maxValue - minValue);
-		}
-		
-		// Takes two strings and simply compares then to return a double of 0.0 (non-identical) or 1.0 (identical).
-		// This provides a way of evaluating a numerical distance between two nominal values.
-		private double nominalDistance(String t1, String t2)
-		{
-			if (t1.equals(t2))
-			{
-				return 0;
-			}
-			else
-			{
-				return 1;
-			}
 		}
 		
 		// Takes a double and returns its squared value.
@@ -132,72 +146,82 @@ public class KnnPattern
 		}
 		
 
-		// Takes ten pairs of values (three pairs of doubles and two of strings), finds the difference between the members
+		// Takes ten pairs of values, finds the difference between the members
 		// of each pair (using nominalDistance() for strings) and returns the sum of the squared differences as a double.
-		private double totalSquaredDistance(double R1, double R2, String R3, String R4, double R5, double S1,
-				double S2, String S3, String S4, double S5)
-		{	
-			double ageDifference = S1 - R1;
-			double incomeDifference = S2 - R2;
-			double statusDifference = nominalDistance(S3, R3);
-			double genderDifference = nominalDistance(S4, R4);
-			double childrenDifference = S5 - R5;
-			
-			// The sum of squared distances is used rather than the euclidean distance
-			// because taking the square root would not change the order.
-			// Status and gender are not squared because they are always 0 or 1.
-			return squaredDistance(ageDifference) + squaredDistance(incomeDifference) + statusDifference + genderDifference + squaredDistance(childrenDifference);
+		private double totalSquaredDistance(double s1, double r1, double s2, double r2, double s3, double r3, double s4, double r4, double s5, double r5, double sR1, double rR1, double sR2, double rR2, double sR3, double rR3, double sR4, double rR4, double sR5, double rR5)
+		{
+			double s1Diff = s1 - sR1;
+			double s2Diff = s2 - sR2;
+			double s3Diff = s3 - sR3;
+			double s4Diff = s4 - sR4;
+			double s5Diff = s5 - sR5;
+
+			double r1Diff = r1 - rR1;
+			double r2Diff = r2 - rR2;
+			double r3Diff = r3 - rR3;
+			double r4Diff = r4 - rR4;
+			double r5Diff = r5 - rR5;
+
+			return (squaredDistance(s1Diff) + squaredDistance(s2Diff) + squaredDistance(s3Diff) + squaredDistance(s4Diff) + squaredDistance(s5Diff) + squaredDistance(r1Diff) + squaredDistance(r2Diff) + squaredDistance(r3Diff) + squaredDistance(r4Diff) + squaredDistance(r5Diff));
+
 		}
 
-		// The @Override annotation causes the compiler to check if a method is actually being overridden
-		// (a warning would be produced in case of a typo or incorrectly matched parameters)
 		@Override
-		// The setup() method is run once at the start of the mapper and is supplied with MapReduce's
-		// context object
 		protected void setup(Context context) throws IOException, InterruptedException
 		{
-				// Read parameter file using alias established in main()
 				Configuration conf = context.getConfiguration();
 				String knnParams = conf.get("passedVal");
 
-		    	StringTokenizer st = new StringTokenizer(knnParams, ",");
-		    	// Using the variables declared earlier, values are assigned to K and to the test dataset, S.
-		    	// These values will remain unchanged throughout the mapper
-				K = Integer.parseInt(st.nextToken());
-				normalisedSAge = normalisedDouble(st.nextToken(), minAge, maxAge);
-				normalisedSIncome = normalisedDouble(st.nextToken(), minIncome, maxIncome);
-				sStatus = st.nextToken();
-				sGender = st.nextToken();
-				normalisedSChildren = normalisedDouble(st.nextToken(), minChildren, maxChildren);
+				StringTokenizer st = new StringTokenizer(knnParams, ",");
+
+				suit1 = normalisedDouble(st.nextToken(), minSuit, maxSuit);
+				rank1 = normalisedDouble(st.nextToken(), minRank, maxRank);
+
+				suit2 = normalisedDouble(st.nextToken(), minSuit, maxSuit);
+				rank2 = normalisedDouble(st.nextToken(), minRank, maxRank);
+
+				suit3 = normalisedDouble(st.nextToken(), minSuit, maxSuit);
+				rank3 = normalisedDouble(st.nextToken(), minRank, maxRank);
+
+				suit4 = normalisedDouble(st.nextToken(), minSuit, maxSuit);
+				rank4 = normalisedDouble(st.nextToken(), minRank, maxRank);
+
+				suit5 = normalisedDouble(st.nextToken(), minSuit, maxSuit);
+				rank5 = normalisedDouble(st.nextToken(), minRank, maxRank);
 			
 		}
 				
 		@Override
-		// The map() method is run by MapReduce once for each row supplied as the input data
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException
 		{
-			// Tokenize the input line (presented as 'value' by MapReduce) from the csv file
-			// This is the training dataset, R
+			// Tokenize the input line (presented as 'value' by MapReduce) from the txt file
 			String rLine = value.toString();
 			StringTokenizer st = new StringTokenizer(rLine, ",");
+
+			double suit1R = normalisedDouble(st.nextToken(), minSuit, maxSuit);
+			double rank1R = normalisedDouble(st.nextToken(), minRank, maxRank);
+
+			double suit2R = normalisedDouble(st.nextToken(), minSuit, maxSuit);
+			double rank2R = normalisedDouble(st.nextToken(), minRank, maxRank);
+
+			double suit3R = normalisedDouble(st.nextToken(), minSuit, maxSuit);
+			double rank3R = normalisedDouble(st.nextToken(), minRank, maxRank);
+
+			double suit4R = normalisedDouble(st.nextToken(), minSuit, maxSuit);
+			double rank4R = normalisedDouble(st.nextToken(), minRank, maxRank);
+
+			double suit5R = normalisedDouble(st.nextToken(), minSuit, maxSuit);
+			double rank5R = normalisedDouble(st.nextToken(), minRank, maxRank);
+
+			String pokerClass = st.nextToken();
 			
-			double normalisedRAge = normalisedDouble(st.nextToken(), minAge, maxAge);
-			double normalisedRIncome = normalisedDouble(st.nextToken(), minIncome, maxIncome);
-			String rStatus = st.nextToken();
-			String rGender = st.nextToken();
-			double normalisedRChildren = normalisedDouble(st.nextToken(), minChildren, maxChildren);
-			String rModel = st.nextToken();
-			
-			// Using these row specific values and the unchanging S dataset values, calculate a total squared
+			// Using these row specific values and the unchanging Testing dataset values, to calculate a total squared
 			// distance between each pair of corresponding values.
-			double tDist = totalSquaredDistance(normalisedRAge, normalisedRIncome, rStatus, rGender,
-					normalisedRChildren, normalisedSAge, normalisedSIncome, sStatus, sGender, normalisedSChildren);		
-			
-			// Add the total distance and corresponding car model for this row into the TreeMap with distance
+			double tDist = totalSquaredDistance(suit1, rank1, suit2, rank2, suit3, rank3, suit4, rank4, suit5, rank5, suit1R, rank1R, suit2R, rank2R, suit3R, rank3R, suit4R, rank4R, suit5R, rank5R);
+		
+			// Add the total distance and corresponding poker class for this row into the TreeMap with distance
 			// as key and model as value.
-			KnnMap.put(tDist, rModel);
-			// Only K distances are required, so if the TreeMap contains over K entries, remove the last one
-			// which will be the highest distance number.
+			KnnMap.put(tDist, pokerClass);
 			if (KnnMap.size() > K)
 			{
 				KnnMap.remove(KnnMap.lastKey());
@@ -214,9 +238,9 @@ public class KnnPattern
 				  Double knnDist = entry.getKey();
 				  String knnModel = entry.getValue();
 				  // distanceAndModel is the instance of DoubleString declared aerlier
-				  distanceAndModel.set(knnDist, knnModel);
+				  distanceAndClass.set(knnDist, knnModel);
 				  // Write to context a NullWritable as key and distanceAndModel as value
-				  context.write(NullWritable.get(), distanceAndModel);
+				  context.write(NullWritable.get(), distanceAndClass);
 			}
 		}
 	}
@@ -232,14 +256,8 @@ public class KnnPattern
 		// setup() again is run before the main reduce() method
 		protected void setup(Context context) throws IOException, InterruptedException
 		{			
-			// Read parameter file using alias established in main()
-			Configuration conf = context.getConfiguration();
-			String knnParams = conf.get("passedVal");
-			
-			StringTokenizer st = new StringTokenizer(knnParams, ",");
-			// Only K is needed from the parameter file by the reducer
-			K = Integer.parseInt(st.nextToken());
-			
+			//Set the value of K explicitly, here and at the start of the Mapper Class
+			K = 5;	
 		}
 		
 		@Override
@@ -262,7 +280,7 @@ public class KnnPattern
 				}
 			}	
 
-				// This section determines which of the K values (models) in the TreeMap occurs most frequently
+				// This section determines which of the K values (classes) in the TreeMap occurs most frequently
 				// by means of constructing an intermediate ArrayList and HashMap.
 
 				// A List of all the values in the TreeMap.
@@ -285,20 +303,19 @@ public class KnnPattern
 			    }
 			    
 			    // Examine the HashMap to determine which key (model) has the highest value (frequency)
-			    String mostCommonModel = null;
+			    String mostCommonClass = null;
 			    int maxFrequency = -1;
 			    for(Map.Entry<String, Integer> entry: freqMap.entrySet())
 			    {
 			        if(entry.getValue() > maxFrequency)
 			        {
-			            mostCommonModel = entry.getKey();
+			            mostCommonClass = entry.getKey();
 			            maxFrequency = entry.getValue();
 			        }
 			    }
 			    
 			// Finally write to context another NullWritable as key and the most common model just counted as value.
-			context.write(NullWritable.get(), new Text(mostCommonModel)); // Use this line to produce a single classification
-//			context.write(NullWritable.get(), new Text(KnnMap.toString()));	// Use this line to see all K nearest neighbours and distances
+			context.write(NullWritable.get(), new Text(mostCommonClass));
 		}
 	}
 
@@ -329,9 +346,7 @@ public class KnnPattern
 
 			// Create job
 			Job job = Job.getInstance(conf, "Find K-Nearest Neighbour");
-			job.setJarByClass(KnnPattern.class);
-			// Set the third parameter when running the job to be the parameter file and give it an alias
-			//job.addCacheFile(new URI(args[2] + "#knnParamFile")); // Parameter file containing test data
+			job.setJarByClass(KnnPokerhand.class);
 			
 			// Setup MapReduce job
 			job.setMapperClass(KnnMapper.class);

@@ -4,12 +4,18 @@ import org.apache.spark._
 import org.apache.spark.SparkContext._
 import org.apache.log4j._
 import scala.collection.immutable.TreeMap
+import scala.io.Source
 
 object KnnPokerhand {
   
   val K = 5;
   //var KnnMap: TreeMap[Double, Double] = new TreeMap[Double, Double]
-  val testData: Array[Int] = Array(1,1,1,13,2,4,2,3,1,12,0)
+  //val testData: Array[Int] = Array(1,1,1,13,2,4,2,3,1,12,0)
+  var testData = new Array[Double](11)
+  val minSuit: Double = 1.0
+  val maxSuit: Double = 4.0
+  val minRank: Double = 1.0
+  val maxRank: Double = 13.0
   
   // Normalises the value to a scale of 0 to 1.0
   def normalisedDouble(givenVal: Double, minVal: Double, maxVal: Double ) : Double = {
@@ -18,11 +24,10 @@ object KnnPokerhand {
   
   // Takes a double and returns its squared value.
   def squaredDistance(givenVal: Double) : Double = {
-    
     return (givenVal*givenVal);
   }
   
-  // Takes ten pairs of values (three pairs of doubles and two of strings), finds the difference between the members
+  // Takes ten pairs of values, finds the difference between the members
   // of each pair (using nominalDistance() for strings) and returns the sum of the squared differences as a double.
   def totalSquaredDistance(trainData: Array[Double]) : Double = {
     
@@ -43,24 +48,18 @@ object KnnPokerhand {
     
     return ( rankDist + suitDist);
   }
-   
+  
+  // ================= Mapper function ==============================
+  
   // This is the map Function
   def theMapper(line: String) = {
-      
     var trainData: Array[Double] = new Array[Double](11)
-    
-    val minSuit: Double = 1
-    val maxSuit: Double = 4
-    val minRank: Double = 1
-    val maxRank: Double = 13
-    
-    // Spl it by commas
+
+    // Split by commas
     val fields = line.split(",")
-    
     //Array to store Suits and Ranks of Current Training Data 
     for(i <- 0 to 9)
       trainData(i) = normalisedDouble(fields(i).toDouble, minSuit, maxSuit)
-    
     // PokerClass
     val pClass = fields(10).toInt
     
@@ -68,6 +67,9 @@ object KnnPokerhand {
     
     (tDist, pClass)
   }
+  
+ 
+  //=================== Main function =============================
   
   /** Our main function where the action happens */
   def main(args: Array[String]) {
@@ -77,57 +79,64 @@ object KnnPokerhand {
         
     // Create a SparkContext using every core of the local machine
     val sc = new SparkContext("local[*]", "KnnPokerhand")
-  
     // Load each line of the source data into an RDD
     val lines = sc.textFile("../KnnTrainingData.txt")
     
-    // Use our parseLines function to convert to (Distance, PokerClass) tuples
-    val rdd = lines.map(theMapper)
+    //Working with testFile
+    val testLines = Source.fromFile("../KnnTestingData.txt").getLines()
     
-    //Sort the rdd elements in an ascending order
-    val sortedRdd = rdd.sortByKey()
-    
-    // Finally take and store top K elements in an array.
-    val kNearestNeighbors = sortedRdd.take(K)
-    
-    //kNearestNeighbors.foreach(println)
-    
-    val classArr = new Array[Int](K)
-    
-    //Store the classes in an Array
-    for(i <- 0 to (K-1))
-      classArr(i) = kNearestNeighbors(i)._2
-      
-      //Sort and store array of classes 
-    val newArr = classArr.sorted
-
-    var mostCommonClass = newArr(0)
-    var freq = 1
-    var currFreq = 1
-    var currClass = newArr(0)
-    
-    //Check for class with highest frequency
-    for(i <- 1 to (K-1)) {
-       if(currClass == newArr(i)) {
-         currFreq = currFreq + 1
+    for (testLine <- testLines)
+    {
+       var testFields = testLine.split(',')
+       for(i <- 0 to 9) {
+          testData(i) = normalisedDouble(testFields(i).toDouble, minSuit, maxSuit)
        }
-       else {
-         if(freq < currFreq) {
-           mostCommonClass = currClass
-           freq = currFreq
-         }
-         currClass = newArr(i)
-         currFreq = 1
-       }
-    }
+        
+        // Use our theMapper function to convert to (Distance, PokerClass) tuples
+        val rdd = lines.map(theMapper)
+        
+        //Sort the rdd elements in an ascending order
+        val sortedRdd = rdd.sortByKey()
+        
+        // Finally take and store top K elements in an array.
+        val kNearestNeighbors = sortedRdd.take(K)
+        
+        var classArr = new Array[Int](K)
+        
+        //Store the classes in an Array
+        for(i <- 0 to (K-1))
+          classArr(i) = kNearestNeighbors(i)._2
+          
+        //Sort and store array of classes 
+        val newArr = classArr.sorted
     
-    if(freq < currFreq) {
-      mostCommonClass = currClass
-      freq = currFreq
-    }
-    
-    println("Most common class : " + mostCommonClass)
-    
+        var mostCommonClass = newArr(0)
+        var freq = 1
+        var currFreq = 1
+        var currClass = newArr(0)
+        
+        //Check for class with highest frequency
+        for(i <- 1 to (K-1)) {
+           if(currClass == newArr(i)) {
+             currFreq = currFreq + 1
+           }
+           else {
+             if(freq < currFreq) {
+               mostCommonClass = currClass
+               freq = currFreq
+             }
+             currClass = newArr(i)
+             currFreq = 1
+           }
+        }
+        
+        if(freq < currFreq) {
+          mostCommonClass = currClass
+          freq = currFreq
+        }
+        
+        println("Most common class : " + mostCommonClass)
+     }
   }
   
 }
