@@ -146,7 +146,7 @@ public class KnnPokerhand
 		}
 		
 
-		// Takes ten pairs of values (three pairs of doubles and two of strings), finds the difference between the members
+		// Takes ten pairs of values, finds the difference between the members
 		// of each pair (using nominalDistance() for strings) and returns the sum of the squared differences as a double.
 		private double totalSquaredDistance(double s1, double r1, double s2, double r2, double s3, double r3, double s4, double r4, double s5, double r5, double sR1, double rR1, double sR2, double rR2, double sR3, double rR3, double sR4, double rR4, double sR5, double rR5)
 		{
