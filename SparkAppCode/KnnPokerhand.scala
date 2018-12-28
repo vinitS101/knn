@@ -8,10 +8,13 @@ import scala.io.Source
 
 object KnnPokerhand {
   
+  //Change value of K as needed (Can also been passed as an argument)
   val K = 5;
-  //var KnnMap: TreeMap[Double, Double] = new TreeMap[Double, Double]
-  //val testData: Array[Int] = Array(1,1,1,13,2,4,2,3,1,12,0)
-  var testData = new Array[Double](11)
+
+  //Stores value of Current Test Case
+  var testData = new Array[Double](10)
+
+  //Range of values for suits and ranks
   val minSuit: Double = 1.0
   val maxSuit: Double = 4.0
   val minRank: Double = 1.0
@@ -27,51 +30,40 @@ object KnnPokerhand {
     return (givenVal*givenVal);
   }
   
-  // Takes ten pairs of values, finds the difference between the members
+  // Takes ten pairs of values (three pairs of doubles and two of strings), finds the difference between the members
   // of each pair (using nominalDistance() for strings) and returns the sum of the squared differences as a double.
   def totalSquaredDistance(trainData: Array[Double]) : Double = {
-    
-    val s1Diff: Double = trainData(0) - testData(0)
-    val s2Diff: Double = trainData(2) - testData(2)
-    val s3Diff: Double = trainData(4) - testData(4)
-    val s4Diff: Double = trainData(6) - testData(6)
-    val s5Diff: Double = trainData(8) - testData(8)
-    
-    val r1Diff: Double = trainData(1) - testData(1)
-    val r2Diff: Double = trainData(3) - testData(3)
-    val r3Diff: Double = trainData(5) - testData(5)
-    val r4Diff: Double = trainData(7) - testData(7)
-    val r5Diff: Double = trainData(9) - testData(9)
-    
-    val rankDist: Double = squaredDistance(s1Diff) + squaredDistance(s2Diff) + squaredDistance(s3Diff) + squaredDistance(s4Diff) + squaredDistance(s5Diff)
-    val suitDist: Double = squaredDistance(r1Diff) + squaredDistance(r2Diff) + squaredDistance(r3Diff) + squaredDistance(r4Diff) + squaredDistance(r5Diff)
-    
-    return ( rankDist + suitDist);
+
+    var diffArr: Double = 0.0
+
+    for(i <- 0 to 9)
+      diffArr += squaredDistance(trainData(i) - testData(i))
+
+    return (diffArr)
   }
-  
-  // ================= Mapper function ==============================
-  
-  // This is the map Function
+
+  // =================
+  //  Mapper Function
+  // =================
   def theMapper(line: String) = {
     var trainData: Array[Double] = new Array[Double](11)
 
-    // Split by commas
+    // Split the input line
     val fields = line.split(",")
     //Array to store Suits and Ranks of Current Training Data 
     for(i <- 0 to 9)
       trainData(i) = normalisedDouble(fields(i).toDouble, minSuit, maxSuit)
     // PokerClass
     val pClass = fields(10).toInt
-    
+    //Calculate and store the Euclidian distance of current test case from current training case
     val tDist = totalSquaredDistance(trainData)
-    
+    //Pass the distance and class as a tuple
     (tDist, pClass)
   }
   
- 
-  //=================== Main function =============================
-  
-  /** Our main function where the action happens */
+  // ===============
+  //  Main Function
+  // ===============
   def main(args: Array[String]) {
    
     // Set the log level to only print errors
@@ -94,13 +86,12 @@ object KnnPokerhand {
         
         // Use our theMapper function to convert to (Distance, PokerClass) tuples
         val rdd = lines.map(theMapper)
-        
         //Sort the rdd elements in an ascending order
         val sortedRdd = rdd.sortByKey()
-        
         // Finally take and store top K elements in an array.
         val kNearestNeighbors = sortedRdd.take(K)
         
+        //New array
         var classArr = new Array[Int](K)
         
         //Store the classes in an Array
@@ -134,9 +125,8 @@ object KnnPokerhand {
           mostCommonClass = currClass
           freq = currFreq
         }
-        
+
         println("Most common class : " + mostCommonClass)
      }
   }
-  
 }
