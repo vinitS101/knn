@@ -1,5 +1,7 @@
 #!/bin/sh
 
+#Sample Script
+
 export HADOOP_CLASSPATH=$(hadoop classpath)
 
 #Create Output directory
