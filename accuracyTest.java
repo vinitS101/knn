@@ -17,8 +17,10 @@ class testAccuracy
         double den = 0, num = 0;
 
         while(str1 != null && str1.length() != 0 && str2 != null && str2.length() != 0) {
-            char ch2[]=str2.toCharArray();
-            char ch1[]= str1.toCharArray();
+            
+            char ch2[] = str2.toCharArray();
+            char ch1[] = str1.toCharArray();
+
             if( ch1[str1.length()-1] != ch2[0] ) {
                 den++;
             } 
@@ -28,12 +30,7 @@ class testAccuracy
             }
 
             str1 = br1.readLine();
-            if(str1 != null && str1.length() == 0) 
-                str1 = br2.readLine();
-
-            str2=br2.readLine();
-            /*if(str2 != null && str2.length() == 0)
-                str2 = br2.readLine();*/
+            str2 = br2.readLine();
         }
 
         System.out.println(num+" "+den);
