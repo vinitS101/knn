@@ -5,15 +5,15 @@ import org.apache.spark.SparkContext._
 import org.apache.log4j._
 import scala.collection.immutable.TreeMap
 import scala.io.Source
+import java.io.File
+import java.io.PrintWriter
 
 object KnnPokerhand {
   
   //Change value of K as needed (Can also been passed as an argument)
   val K = 5;
-
   //Stores value of Current Test Case
   var testData = new Array[Double](10)
-
   //Range of values for suits and ranks
   val minSuit: Double = 1.0
   val maxSuit: Double = 4.0
@@ -77,6 +77,9 @@ object KnnPokerhand {
     //Working with testFile
     val testLines = Source.fromFile("../KnnTestingData.txt").getLines()
     
+    var outputData = new Array[Int](10)
+    var num : Int = 0
+    
     for (testLine <- testLines)
     {
        var testFields = testLine.split(',')
@@ -125,8 +128,23 @@ object KnnPokerhand {
           mostCommonClass = currClass
           freq = currFreq
         }
-
-        println("Most common class : " + mostCommonClass)
+        
+        outputData(num) = mostCommonClass
+        num += 1
+        
+        //println("Most common class : " + mostCommonClass)
      }
+    
+    println("Writing to File now...")
+    
+    val writer = new PrintWriter(new File("Write.txt"))
+    
+    for (i <- 0 to num) {
+      writer.write(outputData(i) + ",")
+    }
+    writer.close()
   }
 }
+
+
+
