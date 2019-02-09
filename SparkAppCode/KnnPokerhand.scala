@@ -1,5 +1,3 @@
-package pokerhand.spark
-
 import org.apache.spark._
 import org.apache.spark.SparkContext._
 import org.apache.log4j._
@@ -11,7 +9,7 @@ import java.io.PrintWriter
 object KnnPokerhand {
   
   //Change value of K as needed (Can also been passed as an argument)
-  val K = 5;
+  val K = 8;
   //Stores value of Current Test Case
   var testData = new Array[Double](10)
   //Range of values for suits and ranks
@@ -61,24 +59,32 @@ object KnnPokerhand {
     (tDist, pClass)
   }
   
-  // ===============
-  //  Main Function
-  // ===============
+  // ==========================================================================================
+  //                      Main Function
+  // ==========================================================================================
   def main(args: Array[String]) {
    
     // Set the log level to only print errors
     Logger.getLogger("org").setLevel(Level.ERROR)
         
     // Create a SparkContext using every core of the local machine
-    val sc = new SparkContext("local[*]", "KnnPokerhand")
+    val conf = new SparkConf()
+    conf.setAppName("KnnPokerhand")
+    val sc = new SparkContext(conf)
+
     // Load each line of the source data into an RDD
-    val lines = sc.textFile("../KnnTrainingData.txt")
+    println("===================================================")
+    println("\nLoading Training Data...")
+    val lines = sc.textFile("s3://.../TrainDataFinal.txt") //Fix location of File as needed
     
     //Working with testFile
-    val testLines = Source.fromFile("../KnnTestingData.txt").getLines()
-    
-    var outputData = new Array[Int](10)
-    var num : Int = 0
+    println("===================================================")
+    println("\nLoading Testing Data...")
+    val testLines = (sc.textFile("s3://.../TestDataFinal.txt")).collect //Fix location of File as needed
+
+    println("===================================================")
+    println("Writing to File now...")
+    val writer = new PrintWriter(new File("write.txt"))
     
     for (testLine <- testLines)
     {
@@ -103,7 +109,8 @@ object KnnPokerhand {
           
         //Sort and store array of classes 
         val newArr = classArr.sorted
-    
+      
+      //Pre-select the class at index 0
         var mostCommonClass = newArr(0)
         var freq = 1
         var currFreq = 1
@@ -129,22 +136,13 @@ object KnnPokerhand {
           freq = currFreq
         }
         
-        outputData(num) = mostCommonClass
-        num += 1
-        
-        //println("Most common class : " + mostCommonClass)
+        println("===================================================")
+        println("     Writing Next Case:")
+
+        writer.write(mostCommonClass + ",")
+        println("Done!")
      }
-    
-    println("Writing to File now...")
-    
-    val writer = new PrintWriter(new File("Write.txt"))
-    
-    for (i <- 0 to num) {
-      writer.write(outputData(i) + ",")
-    }
+
     writer.close()
   }
 }
-
-
-
