@@ -9,7 +9,8 @@ This project focuses on create and compare the performance of MapReduce and spar
 
 # SparkAppCode:
 
-	> Contains code written in Scala that can be run on a Cluster. Add relevant `hdfs` or `s3` paths for the testing and training data.
+	> Contains code written in Scala that can be run on a Cluster. 
+	Add relevant `hdfs` or `s3` paths for the testing and training data.
 
 	> The app writes the classes of the Test Data to a local `.txt` file on the Master Node.
 
