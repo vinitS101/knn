@@ -1,4 +1,4 @@
-This project focuses on create and compare the performance of MapReduce and spark on a Hadoop Cluster for the same sufficiently large dataset. (which can be found here: https://archive.ics.uci.edu/ml/datasets/Poker+Hand )
+This project focuses on comparng the performance of MapReduce and spark on a Hadoop Cluster for the same sufficiently large dataset. (which can be found here: https://archive.ics.uci.edu/ml/datasets/Poker+Hand )
 
 
 # MapReduceCode:
